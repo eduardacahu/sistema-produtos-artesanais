@@ -82,28 +82,37 @@
             <h2>Cadastrar Produto</h2>
 
             <form id="form-produto" class="row g-3">
+                <input type="hidden" id="produto-id">
+
                 <div class="col-md-3">
-                    <input type="text" id="nome" class="form-control" placeholder="Nome">
+                    <input type="text" id="nome" class="form-control" placeholder="Nome" required>
                 </div>
 
                 <div class="col-md-3">
-                    <input type="text" id="categoria" class="form-control" placeholder="Categoria">
+                    <input type="text" id="categoria" class="form-control" placeholder="Categoria" required>
                 </div>
 
                 <div class="col-md-2">
-    <input type="number" id="estoque" class="form-control" placeholder="Estoque">
-</div>
+                    <input type="number" step="0.01" id="preco" class="form-control" placeholder="Preço" required>
+                </div>
 
-<div class="col-md-2">
-    <select id="ativo" class="form-control">
-        <option value="1">Ativo</option>
-        <option value="0">Inativo</option>
-    </select>
-</div>
+                <div class="col-md-2">
+                    <input type="number" id="estoque" class="form-control" placeholder="Estoque" required>
+                </div>
 
-<div class="col-md-2">
-    <button type="submit" class="btn btn-primary w-100">Salvar</button>
-</div>
+                <div class="col-md-2">
+                    <select id="ativo" class="form-select">
+                        <option value="1">Ativo</option>
+                        <option value="0">Inativo</option>
+                    </select>
+                </div>
+
+                <div class="col-12 d-flex flex-column flex-sm-row gap-2">
+                    <button type="submit" id="botao-salvar" class="btn btn-primary w-100">Salvar</button>
+                    <button type="button" id="botao-cancelar" class="btn btn-secondary w-100 d-none">Cancelar</button>
+                </div>
+            </form>
+        </div>
 
         <!-- TABELA -->
         <div class="container-box">
@@ -134,84 +143,157 @@
 
     <!-- JS -->
     <script>
-document.addEventListener("DOMContentLoaded", () => {
-    carregarProdutos();
-});
+        let editandoId = null;
+        let form = null;
+        let botaoSalvar = null;
+        let botaoCancelar = null;
+        let inputId = null;
 
-async function carregarProdutos() {
-    const resposta = await fetch("php/produtos/listar.php");
-    const dados = await resposta.json();
+        document.addEventListener("DOMContentLoaded", () => {
+            // obter referências aos elementos após o DOM estar carregado
+            form = document.getElementById("form-produto");
+            botaoSalvar = document.getElementById("botao-salvar");
+            botaoCancelar = document.getElementById("botao-cancelar");
+            inputId = document.getElementById("produto-id");
 
-    const tabela = document.getElementById("tabela-produtos");
+            carregarProdutos();
 
-    tabela.innerHTML = "";
+            form.addEventListener("submit", async function(e) {
+                e.preventDefault();
 
-    dados.data.forEach(p => {
-        tabela.innerHTML += `
-            <tr>
-                <td>${p.nome}</td>
-                <td>${p.categoria}</td>
-                <td>R$ ${p.preco}</td>
-                <td>${p.estoque}</td>
-                <td>
-                    <button class="btn btn-danger btn-sm" onclick="excluirProduto(${p.id})">Excluir</button>
-                </td>
-            </tr>
-        `;
-    });
-}
+                const nome = document.getElementById("nome").value.trim();
+                const categoria = document.getElementById("categoria").value.trim();
+                const preco = document.getElementById("preco").value;
+                const estoque = document.getElementById("estoque").value;
+                const ativo = document.getElementById("ativo").value;
 
-document.getElementById("form-produto").addEventListener("submit", async function(e) {
-    e.preventDefault();
+                const payload = {
+                    nome,
+                    categoria,
+                    preco,
+                    estoque,
+                    ativo
+                };
 
-    const nome = document.getElementById("nome").value;
-    const categoria = document.getElementById("categoria").value;
-    const preco = document.getElementById("preco").value;
-    const estoque = document.getElementById("estoque").value;
-    const ativo = document.getElementById("ativo").value;
+                let endpoint = "php/produtos/inserir.php";
 
-    const resposta = await fetch("php/produtos/inserir.php", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            nome,
-            categoria,
-            preco,
-            estoque,
-            ativo
-        })
-    });
+                if (editandoId) {
+                    endpoint = "php/produtos/atualizar.php";
+                    payload.id = editandoId;
+                }
 
-    const resultado = await resposta.json();
+                const resposta = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-    alert(resultado.message);
+                const resultado = await resposta.json();
+                alert(resultado.message);
 
-    document.getElementById("form-produto").reset();
+                cancelarEdicao();
+                form.reset();
+                carregarProdutos();
+            });
 
-    carregarProdutos();
-});
+            botaoCancelar.addEventListener("click", cancelarEdicao);
+        });
 
-async function excluirProduto(id) {
-    if (!confirm("Deseja excluir este produto?")) {
-        return;
-    }
+        async function carregarProdutos() {
+            try {
+                const resposta = await fetch("php/produtos/listar.php");
+                const dados = await resposta.json();
+                const tabela = document.getElementById("tabela-produtos");
 
-    const resposta = await fetch("php/produtos/excluir.php", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ id: id })
-    });
+                tabela.innerHTML = "";
 
-    const resultado = await resposta.json();
+                if (!dados.data || dados.data.length === 0) {
+                    tabela.innerHTML = `
+                        <tr>
+                            <td colspan="5">
+                                Nenhum produto encontrado
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
 
-    alert(resultado.message);
+                dados.data.forEach(p => {
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${p.nome}</td>
+                            <td>${p.categoria}</td>
+                            <td>R$ ${p.preco}</td>
+                            <td>${p.estoque}</td>
+                            <td>
+                                <button class="btn btn-warning btn-sm me-1" type="button" onclick="editarProduto(${p.id})">Editar</button>
+                                <button class="btn btn-danger btn-sm" type="button" onclick="excluirProduto(${p.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (erro) {
+                console.error(erro);
+                alert("Erro ao carregar produtos");
+            }
+        }
 
-    carregarProdutos();
-}
-</script>
+        async function excluirProduto(id) {
+            if (!confirm("Deseja excluir este produto?")) {
+                return;
+            }
+
+            const resposta = await fetch("php/produtos/excluir.php", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    id: id
+                })
+            });
+
+            const resultado = await resposta.json();
+            alert(resultado.message);
+            carregarProdutos();
+        }
+
+        async function editarProduto(id) {
+            try {
+                const resposta = await fetch(`php/produtos/listar.php?id=${id}`);
+                const resultado = await resposta.json();
+
+                if (resultado.status !== "ok" || !resultado.data) {
+                    alert("Produto não encontrado");
+                    return;
+                }
+
+                const produto = resultado.data;
+                editandoId = produto.id;
+                inputId.value = produto.id;
+                document.getElementById("nome").value = produto.nome;
+                document.getElementById("categoria").value = produto.categoria;
+                document.getElementById("preco").value = produto.preco;
+                document.getElementById("estoque").value = produto.estoque;
+                document.getElementById("ativo").value = produto.ativo;
+
+                botaoSalvar.textContent = "Atualizar";
+                botaoCancelar.classList.remove("d-none");
+            } catch (erro) {
+                console.error(erro);
+                alert("Erro ao buscar produto para edição");
+            }
+        }
+
+        function cancelarEdicao() {
+            editandoId = null;
+            inputId.value = "";
+            botaoSalvar.textContent = "Salvar";
+            botaoCancelar.classList.add("d-none");
+            form.reset();
+        }
+    </script>
 </body>
 </html>

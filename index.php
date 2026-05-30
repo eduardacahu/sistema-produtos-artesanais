@@ -2,7 +2,6 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// 🔴 TROQUE AQUI PELO NOME DO SEU BANCO
 $host = "localhost";
 $user = "root";
 $pass = "";
