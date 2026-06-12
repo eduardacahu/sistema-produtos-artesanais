@@ -1,0 +1,308 @@
+<?php
+include "../php/valida_sessao.php";
+?>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sistema de Produtos Artesanais</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- CSS próprio -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+
+        header {
+            background-color: #6f42c1;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        nav {
+            background-color: #e9ecef;
+            padding: 10px;
+            text-align: center;
+        }
+
+        footer {
+            background-color: #6f42c1;
+            color: white;
+            text-align: center;
+            padding: 15px;
+            margin-top: 30px;
+        }
+
+        .container-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        table th, table td {
+            border: 1px solid #000;
+            padding: 8px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            input {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <h1>Sistema de Produtos Artesanais</h1>
+    </header>
+    <div class="container mt-3 text-end">
+    <a href="../php/logout.php" class="btn btn-danger">
+        Sair
+    </a>
+</div>
+
+    <!-- NAV -->
+    <nav>
+        Cadastro e gerenciamento de produtos
+    </nav>
+
+    <!-- MAIN -->
+    <main class="container">
+
+        <!-- FORMULÁRIO -->
+        <div class="container-box">
+            <h2>Cadastrar Produto</h2>
+
+            <form id="form-produto" class="row g-3">
+                <input type="hidden" id="produto-id">
+
+                <div class="col-md-3">
+                    <input type="text" id="nome" class="form-control" placeholder="Nome" required>
+                </div>
+
+                <div class="col-md-3">
+                    <input type="text" id="categoria" class="form-control" placeholder="Categoria" required>
+                </div>
+
+                <div class="col-md-2">
+                    <input type="number" step="0.01" id="preco" class="form-control" placeholder="Preço" required>
+                </div>
+
+                <div class="col-md-2">
+                    <input type="number" id="estoque" class="form-control" placeholder="Estoque" required>
+                </div>
+
+                <div class="col-md-2">
+                    <select id="ativo" class="form-select">
+                        <option value="1">Ativo</option>
+                        <option value="0">Inativo</option>
+                    </select>
+                </div>
+
+                <div class="col-12 d-flex flex-column flex-sm-row gap-2">
+                    <button type="submit" id="botao-salvar" class="btn btn-primary w-100">Salvar</button>
+                    <button type="button" id="botao-cancelar" class="btn btn-secondary w-100 d-none">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- TABELA -->
+        <div class="container-box">
+            <h2>Lista de Produtos</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Categoria</th>
+                        <th>Preço</th>
+                        <th>Estoque</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+
+                <tbody id="tabela-produtos">
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer>
+        Projeto Full Stack - Eduarda
+    </footer>
+
+    <!-- JS -->
+    <script>
+        let editandoId = null;
+        let form = null;
+        let botaoSalvar = null;
+        let botaoCancelar = null;
+        let inputId = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // obter referências aos elementos após o DOM estar carregado
+            form = document.getElementById("form-produto");
+            botaoSalvar = document.getElementById("botao-salvar");
+            botaoCancelar = document.getElementById("botao-cancelar");
+            inputId = document.getElementById("produto-id");
+
+            carregarProdutos();
+
+            form.addEventListener("submit", async function(e) {
+                e.preventDefault();
+
+                const nome = document.getElementById("nome").value.trim();
+                const categoria = document.getElementById("categoria").value.trim();
+                const preco = document.getElementById("preco").value;
+                const estoque = document.getElementById("estoque").value;
+                const ativo = document.getElementById("ativo").value;
+
+                const payload = {
+                    nome,
+                    categoria,
+                    preco,
+                    estoque,
+                    ativo
+                };
+
+                let endpoint = "../php/produtos/inserir.php";
+
+                if (editandoId) {
+                    endpoint = "../php/produtos/atualizar.php";
+                    payload.id = editandoId;
+                }
+
+                const resposta = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const resultado = await resposta.json();
+                alert(resultado.message);
+
+                cancelarEdicao();
+                form.reset();
+                carregarProdutos();
+            });
+
+            botaoCancelar.addEventListener("click", cancelarEdicao);
+        });
+
+        async function carregarProdutos() {
+            try {
+                const resposta = await fetch("../php/produtos/listar.php");
+                const dados = await resposta.json();
+                const tabela = document.getElementById("tabela-produtos");
+
+                tabela.innerHTML = "";
+
+                if (!dados.data || dados.data.length === 0) {
+                    tabela.innerHTML = `
+                        <tr>
+                            <td colspan="5">
+                                Nenhum produto encontrado
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                dados.data.forEach(p => {
+                    tabela.innerHTML += `
+                        <tr>
+                            <td>${p.nome}</td>
+                            <td>${p.categoria}</td>
+                            <td>R$ ${p.preco}</td>
+                            <td>${p.estoque}</td>
+                            <td>
+                                <button class="btn btn-warning btn-sm me-1" type="button" onclick="editarProduto(${p.id})">Editar</button>
+                                <button class="btn btn-danger btn-sm" type="button" onclick="excluirProduto(${p.id})">Excluir</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (erro) {
+                console.error(erro);
+                alert("Erro ao carregar produtos");
+            }
+        }
+
+        async function excluirProduto(id) {
+            if (!confirm("Deseja excluir este produto?")) {
+                return;
+            }
+
+            const resposta = await fetch("../php/produtos/excluir.php", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    id: id
+                })
+            });
+
+            const resultado = await resposta.json();
+            alert(resultado.message);
+            carregarProdutos();
+        }
+
+        async function editarProduto(id) {
+            try {
+                const resposta = await fetch(`../php/produtos/listar.php?id=${id}`);
+                const resultado = await resposta.json();
+                console.log(dados);
+
+                if (resultado.status !== "ok" || !resultado.data) {
+                    alert("Produto não encontrado");
+                    return;
+                }
+
+                const produto = resultado.data;
+                editandoId = produto.id;
+                inputId.value = produto.id;
+                document.getElementById("nome").value = produto.nome;
+                document.getElementById("categoria").value = produto.categoria;
+                document.getElementById("preco").value = produto.preco;
+                document.getElementById("estoque").value = produto.estoque;
+                document.getElementById("ativo").value = produto.ativo;
+
+                botaoSalvar.textContent = "Atualizar";
+                botaoCancelar.classList.remove("d-none");
+            } catch (erro) {
+                console.error(erro);
+                alert("Erro ao buscar produto para edição");
+            }
+        }
+
+        function cancelarEdicao() {
+            editandoId = null;
+            inputId.value = "";
+            botaoSalvar.textContent = "Salvar";
+            botaoCancelar.classList.add("d-none");
+            form.reset();
+        }
+    </script>
+</body>
+</html>
